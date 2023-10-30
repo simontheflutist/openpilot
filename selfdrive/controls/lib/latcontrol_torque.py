@@ -1,7 +1,7 @@
 import math
 
 from cereal import log
-from openpilot.common.numpy_fast import interp
+from openpilot.common.numpy_fast import clip, interp
 from openpilot.selfdrive.controls.lib.latcontrol import LatControl
 from openpilot.selfdrive.controls.lib.pid import PIDController
 from openpilot.selfdrive.controls.lib.vehicle_model import ACCELERATION_DUE_TO_GRAVITY
@@ -25,58 +25,96 @@ class LatControlTorque(LatControl):
   def __init__(self, CP, CI):
     super().__init__(CP, CI)
     self.torque_params = CP.lateralTuning.torque
+    # don't clip the acceleration PID; clip the steer output.
     self.pid = PIDController(self.torque_params.kp, self.torque_params.ki,
-                             k_f=self.torque_params.kf, pos_limit=self.steer_max, neg_limit=-self.steer_max)
+                             k_f=self.torque_params.kf, pos_limit=1e308, neg_limit=-1e308)
     self.torque_from_lateral_accel = CI.torque_from_lateral_accel()
     self.use_steering_angle = self.torque_params.useSteeringAngle
     self.steering_angle_deadzone_deg = self.torque_params.steeringAngleDeadzoneDeg
+    self.relaxation_time = 0.5 # [s]
 
   def update_live_torque_params(self, latAccelFactor, latAccelOffset, friction):
     self.torque_params.latAccelFactor = latAccelFactor
     self.torque_params.latAccelOffset = latAccelOffset
     self.torque_params.friction = friction
 
+  def get_torque(self, lateral_accel, vEgo, roll, actual_curvature, friction_compensation=False, diff=False):
+    """
+      Defines torque as a function of acceleration and other parameters.
+    """
+    low_speed_factor = interp(vEgo, LOW_SPEED_X, LOW_SPEED_Y)**2
+    lateral_accel = lateral_accel + low_speed_factor * actual_curvature
+    lateral_accel = lateral_accel - roll * ACCELERATION_DUE_TO_GRAVITY
+    torque = self.torque_from_lateral_accel(lateral_accel, self.torque_params, 0,
+                                            self.steering_angle_deadzone_deg,
+                                            friction_compensation=friction_compensation,
+                                            diff=diff)
+    return torque
+  
+  def get_steer_from_desired_jerk(self, desired_jerk, relaxation_time, lateral_accel, vEgo, roll, actual_curvature):
+    """Suppose torque-acceleration is
+          t = f(a)
+      and torque friction dynamics is
+         Dt = -(t - s)/T
+      where s is the steer command.
+      Then the chain rule gives
+         Da = [1/f'(a)] Dt = -[1 / (T * f'(a))] (f(a) - s)
+      In order to track Da = u, we use the feedback law
+          s = f(a) + (f'(a) * T) u.
+    """
+    # f(a)
+    feedback_term = self.get_torque(lateral_accel, vEgo, roll, actual_curvature)
+
+    # f'(a) * T
+    gain = self.get_torque(lateral_accel, vEgo, roll, actual_curvature, diff=True) * relaxation_time
+    return feedback_term + gain * desired_jerk    
+
+
   def update(self, active, CS, VM, params, last_actuators, steer_limited, desired_curvature, desired_curvature_rate, llk):
+    """Feedback linearization lets us work with the model
+        Da = j
+      where j is a jerk input. Let us change variables to e = a - (desired a). We desire closed loop dynamics
+        De = PI(e)
+      which means
+        Da = D(desired a) + PI(e).
+      The command is the sum of a reference jerk and a PI control on acceleration tracking error.
+    """
     pid_log = log.ControlsState.LateralTorqueState.new_message()
 
     if not active:
       output_torque = 0.0
       pid_log.active = False
     else:
+      # Calculate actual curvature
       if self.use_steering_angle:
         actual_curvature = -VM.calc_curvature(math.radians(CS.steeringAngleDeg - params.angleOffsetDeg), CS.vEgo, params.roll)
-        curvature_deadzone = abs(VM.calc_curvature(math.radians(self.steering_angle_deadzone_deg), CS.vEgo, 0.0))
+        # curvature_deadzone = abs(VM.calc_curvature(math.radians(self.steering_angle_deadzone_deg), CS.vEgo, 0.0))
       else:
         actual_curvature_vm = -VM.calc_curvature(math.radians(CS.steeringAngleDeg - params.angleOffsetDeg), CS.vEgo, params.roll)
         actual_curvature_llk = llk.angularVelocityCalibrated.value[2] / CS.vEgo
         actual_curvature = interp(CS.vEgo, [2.0, 5.0], [actual_curvature_vm, actual_curvature_llk])
-        curvature_deadzone = 0.0
+        # curvature_deadzone = 0.0
+
+      # Calculate actual acceleration
+      actual_lateral_accel = actual_curvature * CS.vEgo ** 2
       desired_lateral_accel = desired_curvature * CS.vEgo ** 2
 
-      # desired rate is the desired rate of change in the setpoint, not the absolute desired curvature
-      # desired_lateral_jerk = desired_curvature_rate * CS.vEgo ** 2
-      actual_lateral_accel = actual_curvature * CS.vEgo ** 2
-      lateral_accel_deadzone = curvature_deadzone * CS.vEgo ** 2
+      # Calculate desired jerk from the reference trajectory Da = desired jerk
+      feedforward_jerk = desired_curvature_rate * CS.vEgo ** 2
 
-      low_speed_factor = interp(CS.vEgo, LOW_SPEED_X, LOW_SPEED_Y)**2
-      setpoint = desired_lateral_accel + low_speed_factor * desired_curvature
-      measurement = actual_lateral_accel + low_speed_factor * actual_curvature
-      gravity_adjusted_lateral_accel = desired_lateral_accel - params.roll * ACCELERATION_DUE_TO_GRAVITY
-      torque_from_setpoint = self.torque_from_lateral_accel(setpoint, self.torque_params, setpoint,
-                                                     lateral_accel_deadzone, friction_compensation=False)
-      torque_from_measurement = self.torque_from_lateral_accel(measurement, self.torque_params, measurement,
-                                                     lateral_accel_deadzone, friction_compensation=False)
-      pid_log.error = torque_from_setpoint - torque_from_measurement
-      ff = self.torque_from_lateral_accel(gravity_adjusted_lateral_accel, self.torque_params,
-                                          desired_lateral_accel - actual_lateral_accel,
-                                          lateral_accel_deadzone, friction_compensation=True)
-
+      # Calculate jerk feedback from deviation (a - desired a)
+      pid_log.error = desired_lateral_accel - actual_lateral_accel
       freeze_integrator = steer_limited or CS.steeringPressed or CS.vEgo < 5
-      output_torque = self.pid.update(pid_log.error,
-                                      feedforward=ff,
-                                      speed=CS.vEgo,
-                                      freeze_integrator=freeze_integrator)
+      feedback_jerk = self.pid.update(pid_log.error, speed=CS.vEgo, freeze_integrator=freeze_integrator)
 
+      # Use feedback linearization to convert desired jerk to a steer command
+      steer = self.get_steer_from_desired_jerk(feedforward_jerk + feedback_jerk, self.relaxation_time,
+                                               actual_lateral_accel, CS.vEgo, params.roll, actual_curvature)
+      
+      # Clip like pid does
+      output_torque = clip(steer, -self.steer_max, self.steer_max)
+
+      # Finish composing log message
       pid_log.active = True
       pid_log.p = self.pid.p
       pid_log.i = self.pid.i
