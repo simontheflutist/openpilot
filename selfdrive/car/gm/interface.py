@@ -20,7 +20,7 @@ BUTTONS_DICT = {CruiseButtons.RES_ACCEL: ButtonType.accelCruise, CruiseButtons.D
 
 
 NON_LINEAR_TORQUE_PARAMS = {
-  CAR.BOLT_EUV: [2.6531724862969748, 1.0, 0.1919764879840985, 0.009054123646805178],
+  CAR.BOLT_EUV: [1.6, 2.0, 0.0, 0.009054123646805178],
   CAR.ACADIA: [4.78003305, 1.0, 0.3122, 0.05591772],
   CAR.SILVERADO: [3.29974374, 1.0, 0.25571356, 0.0465122]
 }
@@ -45,11 +45,17 @@ class CarInterface(CarInterfaceBase):
       return CarInterfaceBase.get_steer_feedforward_default
 
   def torque_from_lateral_accel_siglin(self, lateral_accel_value: float, torque_params: car.CarParams.LateralTorqueTuning,
-                                       lateral_accel_error: float, lateral_accel_deadzone: float, friction_compensation: bool) -> float:
-    friction = get_friction(lateral_accel_error, lateral_accel_deadzone, FRICTION_THRESHOLD, torque_params, friction_compensation)
+                                       lateral_accel_error: float, lateral_accel_deadzone: float, friction_compensation: bool,
+                                       diff: bool = False) -> float:
+    # friction = get_friction(lateral_accel_error, lateral_accel_deadzone, FRICTION_THRESHOLD, torque_params, friction_compensation)
+    friction = 0
 
     def sig(val):
       return 1 / (1 + exp(-val)) - 0.5
+    
+    def diff_sig(val):
+      s = 1 / (1 + exp(-val))
+      return s * (1 - s)
 
     # The "lat_accel vs torque" relationship is assumed to be the sum of "sigmoid + linear" curves
     # An important thing to consider is that the slope at 0 should be > 0 (ideally >1)
@@ -58,6 +64,9 @@ class CarInterface(CarInterfaceBase):
     non_linear_torque_params = NON_LINEAR_TORQUE_PARAMS.get(self.CP.carFingerprint)
     assert non_linear_torque_params, "The params are not defined"
     a, b, c, _ = non_linear_torque_params
+    if diff:
+      steer_torque_diff = (a * b * diff_sig(lateral_accel_value * a)) + c
+      return steer_torque_diff
     steer_torque = (sig(lateral_accel_value * a) * b) + (lateral_accel_value * c)
     return float(steer_torque) + friction
 
