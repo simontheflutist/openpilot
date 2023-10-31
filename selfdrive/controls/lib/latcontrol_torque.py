@@ -44,20 +44,28 @@ class LatControlTorque(LatControl):
     self.torque_params.latAccelOffset = latAccelOffset
     self.torque_params.friction = friction
 
-  def get_torque(self, lateral_accel, vEgo, roll, actual_curvature, friction_compensation=False, diff=False):
+  def get_torque(self, lateral_accel, vEgo, roll, friction_compensation=False, diff=False):
     """
       Defines torque as a function of acceleration and other parameters.
     """
     low_speed_factor = interp(vEgo, LOW_SPEED_X, LOW_SPEED_Y)**2
-    lateral_accel = lateral_accel + low_speed_factor * actual_curvature
-    lateral_accel = lateral_accel - roll * ACCELERATION_DUE_TO_GRAVITY
-    torque = self.torque_from_lateral_accel(lateral_accel, self.torque_params, 0,
+    # actual_curvature = lateral_accel / vEgo**2
+    # lateral_accel = lateral_accel + low_speed_factor * actual curvature
+    low_speed_accel_multiplier = 1 + low_speed_factor / vEgo**2
+    lateral_accel = low_speed_accel_multiplier * lateral_accel - roll * ACCELERATION_DUE_TO_GRAVITY
+    if diff:
+      # chain rule on the first argument
+      return self.torque_from_lateral_accel(lateral_accel, self.torque_params, 0,
                                             self.steering_angle_deadzone_deg,
                                             friction_compensation=friction_compensation,
-                                            diff=diff)
-    return torque
+                                            diff=True) * low_speed_accel_multiplier 
+    else:
+      return self.torque_from_lateral_accel(lateral_accel, self.torque_params, 0,
+                                            self.steering_angle_deadzone_deg,
+                                            friction_compensation=friction_compensation,
+                                            diff=False)
   
-  def get_steer_from_desired_jerk(self, desired_jerk, relaxation_time, lateral_accel, vEgo, roll, actual_curvature):
+  def get_steer_from_desired_jerk(self, desired_jerk, relaxation_time, lateral_accel, vEgo, roll):
     """Suppose torque-acceleration is
           t = f(a)
       and torque friction dynamics is
@@ -69,10 +77,10 @@ class LatControlTorque(LatControl):
           s = f(a) + (f'(a) * T) u.
     """
     # f(a)
-    feedback_term = self.get_torque(lateral_accel, vEgo, roll, actual_curvature)
+    feedback_term = self.get_torque(lateral_accel, vEgo, roll)
 
     # f'(a) * T
-    gain = self.get_torque(lateral_accel, vEgo, roll, actual_curvature, diff=True) * relaxation_time
+    gain = self.get_torque(lateral_accel, vEgo, roll, diff=True) * relaxation_time
     return feedback_term + gain * desired_jerk    
 
 
@@ -115,7 +123,7 @@ class LatControlTorque(LatControl):
 
       # Use feedback linearization to convert desired jerk to a steer command
       steer = self.get_steer_from_desired_jerk(feedforward_jerk + feedback_jerk, self.relaxation_time,
-                                               actual_lateral_accel, CS.vEgo, params.roll, actual_curvature)
+                                               actual_lateral_accel, CS.vEgo, params.roll)
       
       # Clip like pid does
       output_torque = clip(steer, -self.steer_max, self.steer_max)
