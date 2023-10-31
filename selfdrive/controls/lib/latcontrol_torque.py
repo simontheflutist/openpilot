@@ -27,17 +27,15 @@ class LatControlTorque(LatControl):
   def __init__(self, CP, CI):
     super().__init__(CP, CI)
     self.torque_params = CP.lateralTuning.torque
-    # convert from accel scale to steering scale
-    # match linearization at 0
-    acceleration_per_torque_factor = (2.6531724862969748 + 0.1919764879840985)
+    self.relaxation_time = 2 # [s]
     # don't clip the acceleration PID; clip the steer output.
-    self.pid = PIDController(k_p=self.torque_params.kp/acceleration_per_torque_factor,
-                             k_i=self.torque_params.ki/acceleration_per_torque_factor,
-                             k_f=self.torque_params.kf, pos_limit=1e308, neg_limit=-1e308)
+    self.pid = PIDController(k_p=self.torque_params.kp/self.relaxation_time,
+                             k_i=self.torque_params.ki/self.relaxation_time,
+                             k_f=self.torque_params.kf/self.relaxation_time, pos_limit=1e308, neg_limit=-1e308)
     self.torque_from_lateral_accel = CI.torque_from_lateral_accel()
     self.use_steering_angle = self.torque_params.useSteeringAngle
     self.steering_angle_deadzone_deg = self.torque_params.steeringAngleDeadzoneDeg
-    self.relaxation_time = 2 # [s]
+    
 
   def update_live_torque_params(self, latAccelFactor, latAccelOffset, friction):
     self.torque_params.latAccelFactor = latAccelFactor
