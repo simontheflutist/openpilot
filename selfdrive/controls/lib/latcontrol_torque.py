@@ -13,23 +13,14 @@ from openpilot.selfdrive.car.interfaces import FRICTION_THRESHOLD
 # torque applied to the steering rack. It does not correlate to
 # wheel slip, or to speed.
 
-# This controller applies torque to achieve desired lateral
-# accelerations. To compensate for the low speed effects we
-# use a LOW_SPEED_FACTOR in the error. Additionally, there is
-# friction in the steering wheel that needs to be overcome to
-# move it at all, this is compensated for too.
-
-LOW_SPEED_X = [0, 10, 20, 30]
-LOW_SPEED_Y = [15, 13, 10, 5]
-
-
 class LatControlTorque(LatControl):
   def __init__(self, CP, CI):
     super().__init__(CP, CI)
     self.torque_params = CP.lateralTuning.torque
     self.relaxation_time = 0.85329004 # [s]
+    self.tracking_time_ratio = 1
     # don't clip the acceleration PID; clip the steer output.
-    self.pid = PIDController(k_p=self.torque_params.kp/self.relaxation_time,
+    self.pid = PIDController(k_p=1/(tracking_time_ratio * self.relaxation_time),
                              k_i=self.torque_params.ki/self.relaxation_time,
                              k_f=self.torque_params.kf/self.relaxation_time, pos_limit=1e308, neg_limit=-1e308)
     self.torque_from_lateral_accel = CI.torque_from_lateral_accel()
@@ -52,7 +43,7 @@ class LatControlTorque(LatControl):
       return self.torque_from_lateral_accel(lateral_accel, self.torque_params, 0,
                                             self.steering_angle_deadzone_deg,
                                             friction_compensation=friction_compensation,
-                                            diff=True) * low_speed_accel_multiplier 
+                                            diff=True)
     else:
       return self.torque_from_lateral_accel(lateral_accel, self.torque_params, 0,
                                             self.steering_angle_deadzone_deg,
