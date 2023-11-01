@@ -18,9 +18,11 @@ class LatControlTorque(LatControl):
     super().__init__(CP, CI)
     self.torque_params = CP.lateralTuning.torque
     self.relaxation_time = 0.85329004 # [s]
-    self.tracking_time_ratio = 1
+    # ratio of tracking time constant to relaxation time
+    # smaller means better performance, but more risk of instability
+    self.tracking_time_ratio = 1 # dimensionless
     # don't clip the acceleration PID; clip the steer output.
-    self.pid = PIDController(k_p=1/(tracking_time_ratio * self.relaxation_time),
+    self.pid = PIDController(k_p=1/(self.tracking_time_ratio * self.relaxation_time),
                              k_i=self.torque_params.ki/self.relaxation_time,
                              k_f=self.torque_params.kf/self.relaxation_time, pos_limit=1e308, neg_limit=-1e308)
     self.torque_from_lateral_accel = CI.torque_from_lateral_accel()
