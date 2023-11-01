@@ -27,7 +27,7 @@ class LatControlTorque(LatControl):
   def __init__(self, CP, CI):
     super().__init__(CP, CI)
     self.torque_params = CP.lateralTuning.torque
-    self.relaxation_time = 2 # [s]
+    self.relaxation_time = 0.85329004 # [s]
     # don't clip the acceleration PID; clip the steer output.
     self.pid = PIDController(k_p=self.torque_params.kp/self.relaxation_time,
                              k_i=self.torque_params.ki/self.relaxation_time,
@@ -46,11 +46,7 @@ class LatControlTorque(LatControl):
     """
       Defines torque as a function of acceleration and other parameters.
     """
-    low_speed_factor = interp(vEgo, LOW_SPEED_X, LOW_SPEED_Y)**2
-    # actual_curvature = lateral_accel / vEgo**2
-    # lateral_accel = lateral_accel + low_speed_factor * actual curvature
-    low_speed_accel_multiplier = 1 + low_speed_factor / vEgo**2
-    lateral_accel = low_speed_accel_multiplier * lateral_accel - roll * ACCELERATION_DUE_TO_GRAVITY
+    lateral_accel = lateral_accel - roll * ACCELERATION_DUE_TO_GRAVITY
     if diff:
       # chain rule on the first argument
       return self.torque_from_lateral_accel(lateral_accel, self.torque_params, 0,
@@ -125,12 +121,6 @@ class LatControlTorque(LatControl):
       
       # Clip like pid does
       output_torque = clip(steer, -self.steer_max, self.steer_max)
-      # Friction like torque controller does
-      output_torque += get_friction(lateral_accel_error=desired_lateral_accel-actual_lateral_accel,
-                                    lateral_accel_deadzone=curvature_deadzone * CS.vEgo**2,
-                                    friction_threshold=FRICTION_THRESHOLD,
-                                    torque_params=self.torque_params,
-                                    friction_compensation=True)
 
       # Finish composing log message
       pid_log.active = True
