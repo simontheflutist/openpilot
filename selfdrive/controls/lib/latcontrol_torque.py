@@ -124,7 +124,7 @@ class LatControlTorque(LatControl):
       
       # Compute feedback
       steer = self.get_steer_command(desired_lateral_accel,
-                                     actual_lateral_accel, gamma, CS.vEgo, params.roll)
+                                     actual_lateral_accel, gamma, CS.vEgo)
 
       # Clip like pid does
       output_torque = clip(steer, -self.steer_max, self.steer_max)
