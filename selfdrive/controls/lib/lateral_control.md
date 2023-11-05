@@ -66,7 +66,5 @@ $$ \begin{align}
 \end{align}$$
 
 To make $\dot V$ negative semidefinite, we choose to adapt $\gamma$ as
-$
-\dot \gamma = \mu (\hat a - a) (a_\text{ref} - a)
-$.
+$\dot \gamma = \mu (\hat a - a) (a_\text{ref} - a)$.
 This way, $a$ tracks $\hat a$ without initial knowledge of $T$.
