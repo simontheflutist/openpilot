@@ -5,7 +5,8 @@ from cereal import log
 from opendbc.car.interfaces import LatControlInputs
 from opendbc.car.vehicle_model import ACCELERATION_DUE_TO_GRAVITY
 from openpilot.selfdrive.controls.lib.latcontrol import LatControl
-from openpilot.common.pid import PIDController
+from openpilot.selfdrive.controls.lib.pid_lateral_error import LateralErrorPI
+
 
 # At higher speeds (25+mph) we can assume:
 # Lateral acceleration achieved by a specific car correlates to
@@ -26,7 +27,7 @@ class LatControlTorque(LatControl):
   def __init__(self, CP, CI):
     super().__init__(CP, CI)
     self.torque_params = CP.lateralTuning.torque.as_builder()
-    self.pid = PIDController(self.torque_params.kp, self.torque_params.ki,
+    self.pid = LateralErrorPI(self.torque_params.kp, self.torque_params.ki,
                              k_f=self.torque_params.kf, pos_limit=self.steer_max, neg_limit=-self.steer_max)
     self.torque_from_lateral_accel = CI.torque_from_lateral_accel()
     self.steering_angle_deadzone_deg = self.torque_params.steeringAngleDeadzoneDeg
@@ -65,15 +66,18 @@ class LatControlTorque(LatControl):
                                           desired_lateral_accel - actual_lateral_accel, lateral_accel_deadzone, friction_compensation=True,
                                           gravity_adjusted=True)
 
-      freeze_integrator = steer_limited_by_controls or CS.steeringPressed or CS.vEgo < 5
+      freeze_integrator = steer_limited_by_controls or CS.vEgo < 5
+      reset_integrator = CS.steeringPressed
       output_torque = self.pid.update(pid_log.error,
+                                      yaw_rate=actual_curvature * CS.vEgo,
                                       feedforward=ff,
                                       speed=CS.vEgo,
-                                      freeze_integrator=freeze_integrator)
+                                      freeze_integrator=freeze_integrator,
+                                      reset_integrator=reset_integrator)
 
       pid_log.active = True
       pid_log.p = float(self.pid.p)
-      pid_log.i = float(self.pid.i)
+      pid_log.i = float(self.pid.e)
       pid_log.d = float(self.pid.d)
       pid_log.f = float(self.pid.f)
       pid_log.output = float(-output_torque)
