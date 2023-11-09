@@ -55,7 +55,6 @@ class LateralErrorPI():
     #    old_k_i**2 = k_i**2 + k_ii
     # next let's define an anti-damping coefficient alpha so that
     #    k_ii = k_i**2 * alpha / 4
-    # when alpha=1 the system is in theory critically damped
     alpha = 0.25
     k_i_squared = self.old_k_i**2 / (1 + alpha/4)
     k_i = k_i_squared ** 0.5
@@ -80,7 +79,8 @@ class LateralErrorPI():
     self.control = 0
 
   def update(self, error, yaw_rate=0.0,
-             error_rate=0.0, speed=0.0, override=False, feedforward=0., freeze_integrator=False):
+             error_rate=0.0, speed=0.0, override=False, feedforward=0.,
+             freeze_integrator=False, reset_integrator=False):
     self.speed = speed
 
     self.p = float(error) * self.k_p
@@ -105,9 +105,12 @@ class LateralErrorPI():
 
       # Update when changing i will move the control away from the limits
       # or when i will move towards the sign of the error
-      if ((error >= 0 and (control <= self.pos_limit or self.i < 0.0)) or
-          (error <= 0 and (control >= self.neg_limit or self.i > 0.0))) and \
-         not freeze_integrator:
+      if reset_integrator:
+        self.e = 0.
+        self.e_dot = 0.
+      elif (((error >= 0 and (control <= self.pos_limit or self.i < 0.0)) or
+            (error <= 0 and (control >= self.neg_limit or self.i > 0.0))) and
+            not freeze_integrator):
         self.e = e
         self.e_dot = e_dot
       else:

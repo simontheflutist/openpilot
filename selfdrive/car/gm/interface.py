@@ -222,8 +222,9 @@ class CarInterface(CarInterfaceBase):
       ret.tireStiffnessFactor = 1.0
       ret.steerActuatorDelay = 0.2
 
-      ret.lateralTuning.pid.kiBP, ret.lateralTuning.pid.kpBP = [[10., 30.], [0.]]
-      ret.lateralTuning.pid.kpV, ret.lateralTuning.pid.kiV = [[0.0], [0.03, 0.02]]
+      ret.lateralTuning.pid.kf = 0.
+      ret.lateralTuning.pid.kiBP, ret.lateralTuning.pid.kiV = ([10., 30.], [0.03, 0.02])
+      ret.lateralTuning.pid.kpV, ret.lateralTuning.pid.kpBP = [[0.0], [0.0]]
       CarInterfaceBase.configure_torque_tune(candidate, ret.lateralTuning)
 
     elif candidate == CAR.SILVERADO:
