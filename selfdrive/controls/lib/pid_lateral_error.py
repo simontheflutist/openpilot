@@ -41,11 +41,12 @@ class LateralErrorPI():
     #     d/dt e_dot = -(psi_dot)^2 e - l * (k_ii * e + k_i * e_dot)
     # characteristic equation
     #     s^2 + (l * k_i) s + (l * k_ii * psi_dot^2) = 0
-    # break frequency
+    # undamped natural frequency
     #     omega = sqrt(l * k_ii * psi_dot^2)
     #           = psi_dot * sqrt(l * k_ii)
-    # damping
-    #        xi = 0.5 * k_i/psi_dot * sqrt(l / k_ii)
+    # damping? solve the equation
+    #    2 * xi * omega = l * k_i
+    #        xi = sqrt(l) * k_i / [2 * sqrt(k_ii) * psi_dot]
     #
     # goal: use the "stock" k_i to get two gains, k_i for the first integral
     # of error and k_ii for the second
@@ -55,7 +56,7 @@ class LateralErrorPI():
     #    old_k_i**2 = k_i**2 + k_ii
     # next let's define an anti-damping coefficient alpha so that
     #    k_ii = k_i**2 * alpha / 4
-    alpha = 0.25
+    alpha = 0.04
     k_i_squared = self.old_k_i**2 / (1 + alpha/4)
     k_i = k_i_squared ** 0.5
     k_ii = k_i_squared * alpha / 4
