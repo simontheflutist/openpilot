@@ -75,7 +75,7 @@ class LatControlTorque(LatControl):
       reset_integrator = CS.steeringPressed
       freeze_integrator = steer_limited
       output_torque = self.pid.update(pid_log.error,
-                                      yaw_rate=llk.angularVelocityCalibrated.value[2],
+                                      yaw_rate=actual_curvature * CS.vEgo,
                                       feedforward=ff,
                                       speed=CS.vEgo,
                                       freeze_integrator=freeze_integrator,
