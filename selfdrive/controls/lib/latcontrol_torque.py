@@ -47,6 +47,7 @@ class LatControlTorque(LatControl):
     else:
       actual_curvature = -VM.calc_curvature(math.radians(CS.steeringAngleDeg - params.angleOffsetDeg), CS.vEgo, params.roll)
       roll_compensation = params.roll * ACCELERATION_DUE_TO_GRAVITY
+      live_lat_accel_offset = params.liveLatAccelOffset
       curvature_deadzone = abs(VM.calc_curvature(math.radians(self.steering_angle_deadzone_deg), CS.vEgo, 0.0))
       desired_lateral_accel = desired_curvature * CS.vEgo ** 2
 
@@ -58,7 +59,7 @@ class LatControlTorque(LatControl):
       low_speed_factor = np.interp(CS.vEgo, LOW_SPEED_X, LOW_SPEED_Y)**2
       setpoint = desired_lateral_accel + low_speed_factor * desired_curvature
       measurement = actual_lateral_accel + low_speed_factor * actual_curvature
-      gravity_adjusted_lateral_accel = desired_lateral_accel - roll_compensation
+      gravity_adjusted_lateral_accel = desired_lateral_accel - roll_compensation - live_lat_accel_offset
 
       # do error correction in lateral acceleration space, convert at end to handle non-linear torque responses correctly
       pid_log.error = float(setpoint - measurement)

@@ -162,6 +162,7 @@ class VehicleParamsLearner:
     liveParameters = msg.liveParameters
     liveParameters.posenetValid = True
     liveParameters.sensorValid = sensors_valid
+    liveParameters.liveLatAccelOffset = float(x[States.LAT_ACCEL_OFFSET].item())
     liveParameters.steerRatio = float(x[States.STEER_RATIO].item())
     liveParameters.stiffnessFactor = float(x[States.STIFFNESS].item())
     liveParameters.roll = float(self.roll)

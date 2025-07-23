@@ -39,6 +39,7 @@ class States:
   YAW_RATE = _slice(1)  # [rad/s]
   STEER_ANGLE = _slice(1)  # [rad]
   ROAD_ROLL = _slice(1)  # [rad]
+  LAT_ACCEL_OFFSET = _slice(1)  # [m/s^2]
 
 
 class CarKalman(KalmanFilter):
@@ -53,7 +54,8 @@ class CarKalman(KalmanFilter):
     10.0, 0.0,
     0.0,
     0.0,
-    0.0
+    0.0,
+    0.0  # LAT_ACCEL_OFFSET
   ])
 
   # process noise
@@ -67,6 +69,7 @@ class CarKalman(KalmanFilter):
     math.radians(0.1)**2,
     math.radians(0.1)**2,
     math.radians(1)**2,
+    (0.05)**2  # LAT_ACCEL_OFFSET process noise. start this low and then tune it up towards 0.1 m/s^2?
   ])
   P_initial = Q.copy()
 
@@ -132,8 +135,12 @@ class CarKalman(KalmanFilter):
     C[0, 0] = ACCELERATION_DUE_TO_GRAVITY
     C[1, 0] = 0
 
+    D = sp.Matrix(np.zeros((2, 1)))
+    D[0, 0] = state[States.LAT_ACCEL_OFFSET, :][0, 0]
+    D[1, 0] = 0
+
     x = sp.Matrix([v, r])  # lateral velocity, yaw rate
-    x_dot = A * x + B * (sa - angle_offset - angle_offset_fast) - C * theta
+    x_dot = A * x + B * (sa - angle_offset - angle_offset_fast) - C * theta - D
 
     dt = sp.Symbol('dt')
     state_dot = sp.Matrix(np.zeros((dim_state, 1)))

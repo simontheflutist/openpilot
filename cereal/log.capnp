@@ -2244,6 +2244,7 @@ struct LiveParametersData {
   stiffnessFactor @4 :Float32;
   steerRatio @5 :Float32;
   sensorValid @6 :Bool;
+  liveLatAccelOffset @21 :Float32;
   posenetSpeed @8 :Float32;
   posenetValid @9 :Bool;
   angleOffsetFastStd @10 :Float32;
