@@ -63,13 +63,14 @@ class LatControlTorque(LatControl):
       # do error correction in lateral acceleration space, convert at end to handle non-linear torque responses correctly
       pid_log.error = float(setpoint - measurement)
       ff = gravity_adjusted_lateral_accel
-      ff += get_friction(desired_lateral_accel - actual_lateral_accel, lateral_accel_deadzone, FRICTION_THRESHOLD, self.torque_params)
 
       freeze_integrator = steer_limited_by_controls or CS.steeringPressed or CS.vEgo < 5
       output_accel = self.pid.update(pid_log.error,
                                      feedforward=ff,
                                      speed=CS.vEgo,
                                      freeze_integrator=freeze_integrator)
+      
+      output_accel += get_friction(output_accel, lateral_accel_deadzone, FRICTION_THRESHOLD, self.torque_params)
       output_torque = self.torque_from_lateral_accel(LatControlInputs(output_accel, roll_compensation, CS.vEgo, CS.aEgo), self.torque_params,
                                                      gravity_adjusted=True)  # TODO: remove Bolt nano ff and remove this
 
