@@ -147,11 +147,7 @@ class VehicleParamsLearner:
       float(x[States.ROAD_ROLL].item()),
       self.roll - ROLL_MAX_DELTA, self.roll + ROLL_MAX_DELTA
     ) + np.clip(float(x[States.LAT_ACCEL_OFFSET].item()), -0.1, 0.1) # 0.1 g is plenty
-    roll_std = np.sqrt(
-      self.kf.P[States.ROAD_ROLL, States.ROAD_ROLL]
-      #  + self.kf.P[States.LAT_ACCEL_OFFSET, States.LAT_ACCEL_OFFSET]
-      # + 2 * self.kf.P[States.ROAD_ROLL, States.LAT_ACCEL_OFFSET]
-    )
+    roll_std = float(P[States.ROAD_ROLL].item())
     if self.active and self.observed_speed > LOW_ACTIVE_SPEED:
       # Account for the opposite signs of the yaw rates
       # At low speeds, bumping into a curb can cause the yaw rate to be very high
