@@ -69,7 +69,7 @@ class CarKalman(KalmanFilter):
     math.radians(0.1)**2,
     math.radians(0.1)**2,
     math.radians(1)**2,
-    (0.05)**2  # LAT_ACCEL_OFFSET process noise. start this low and then tune it up towards 0.1 m/s^2?
+    0.2**2  # LAT_ACCEL_OFFSET process noise. start this low and then tune it up towards 0.1 m/s^2?
   ])
   P_initial = Q.copy()
 
