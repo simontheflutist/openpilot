@@ -70,7 +70,7 @@ class CarKalman(KalmanFilter):
     math.radians(0.1)**2,
     math.radians(1)**2,
     # suggested by gemini
-    0.03**2
+    0.01**2
   ])
   P_initial = Q.copy()
 

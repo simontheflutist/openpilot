@@ -156,7 +156,7 @@ class VehicleParamsLearner:
       sensors_valid = True
     self.avg_offset_valid = check_valid_with_hysteresis(self.avg_offset_valid, self.avg_angle_offset, OFFSET_MAX, OFFSET_LOWERED_MAX)
     self.total_offset_valid = check_valid_with_hysteresis(self.total_offset_valid, self.angle_offset, OFFSET_MAX, OFFSET_LOWERED_MAX)
-    self.roll_valid = check_valid_with_hysteresis(self.roll_valid, self.roll, ROLL_MAX, ROLL_LOWERED_MAX)
+    self.roll_valid = check_valid_with_hysteresis(self.roll_valid, float(x[States.ROAD_ROLL].item()), ROLL_MAX, ROLL_LOWERED_MAX)
 
     msg = messaging.new_message('liveParameters')
 
