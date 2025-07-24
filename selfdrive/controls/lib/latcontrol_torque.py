@@ -29,6 +29,7 @@ class LatControlTorque(LatControl):
     super().__init__(CP, CI)
     self.steer_max = ISO_LATERAL_ACCEL
     self.torque_params = CP.lateralTuning.torque.as_builder()
+    # replace I with learned offset
     self.pid = PIDController(self.torque_params.kp, 0.,
                              k_f=self.torque_params.kf, pos_limit=self.steer_max, neg_limit=-self.steer_max)
     self.torque_from_lateral_accel = CI.torque_from_lateral_accel()
@@ -76,9 +77,9 @@ class LatControlTorque(LatControl):
 
       pid_log.active = True
       pid_log.p = float(self.pid.p)
-      pid_log.i = float(self.pid.i)
+      pid_log.i = float(live_lat_accel_offset)
       pid_log.d = float(self.pid.d)
-      pid_log.f = float(self.pid.f)
+      pid_log.f = float(desired_lateral_accel - roll_compensation)
       pid_log.output = float(-output_torque)  # TODO: log lat accel?
       pid_log.actualLateralAccel = float(actual_lateral_accel)
       pid_log.desiredLateralAccel = float(desired_lateral_accel)

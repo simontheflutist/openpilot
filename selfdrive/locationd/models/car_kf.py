@@ -69,7 +69,7 @@ class CarKalman(KalmanFilter):
     math.radians(0.1)**2,
     math.radians(0.1)**2,
     math.radians(1)**2,
-    0.4**2  # LAT_ACCEL_OFFSET process noise. start this low and then tune it up towards 0.1 m/s^2?
+    0.9  # LAT_ACCEL_OFFSET process noise. start this low and then tune it up towards 0.1 m/s^2?
   ])
   P_initial = Q.copy()
 
@@ -97,7 +97,7 @@ class CarKalman(KalmanFilter):
     name = CarKalman.name
 
     # vehicle models comes from The Science of Vehicle Dynamics: Handling, Braking, and Ride of Road and Race Cars
-    # Model used is in 6.15 with formula from 6.198
+    # Model used is in 7.211-7.213 in the 2023 version
 
     # globals
     global_vars = [sp.Symbol(name) for name in CarKalman.global_vars]
