@@ -29,8 +29,7 @@ class LatControlTorque(LatControl):
     super().__init__(CP, CI)
     self.steer_max = ISO_LATERAL_ACCEL
     self.torque_params = CP.lateralTuning.torque.as_builder()
-    # replace I with learned offset
-    self.pid = PIDController(self.torque_params.kp, 0.,
+    self.pid = PIDController(self.torque_params.kp, self.torque_params.ki,
                              k_f=self.torque_params.kf, pos_limit=self.steer_max, neg_limit=-self.steer_max)
     self.torque_from_lateral_accel = CI.torque_from_lateral_accel()
     self.steering_angle_deadzone_deg = self.torque_params.steeringAngleDeadzoneDeg
@@ -48,7 +47,6 @@ class LatControlTorque(LatControl):
     else:
       actual_curvature = -VM.calc_curvature(math.radians(CS.steeringAngleDeg - params.angleOffsetDeg), CS.vEgo, params.roll)
       roll_compensation = params.roll * ACCELERATION_DUE_TO_GRAVITY
-      live_lat_accel_offset = params.liveLatAccelOffset
       curvature_deadzone = abs(VM.calc_curvature(math.radians(self.steering_angle_deadzone_deg), CS.vEgo, 0.0))
       desired_lateral_accel = desired_curvature * CS.vEgo ** 2
 
@@ -60,7 +58,7 @@ class LatControlTorque(LatControl):
       low_speed_factor = np.interp(CS.vEgo, LOW_SPEED_X, LOW_SPEED_Y)**2
       setpoint = desired_lateral_accel + low_speed_factor * desired_curvature
       measurement = actual_lateral_accel + low_speed_factor * actual_curvature
-      gravity_adjusted_lateral_accel = desired_lateral_accel - roll_compensation - live_lat_accel_offset
+      gravity_adjusted_lateral_accel = desired_lateral_accel - roll_compensation
 
       # do error correction in lateral acceleration space, convert at end to handle non-linear torque responses correctly
       pid_log.error = float(setpoint - measurement)
@@ -77,9 +75,9 @@ class LatControlTorque(LatControl):
 
       pid_log.active = True
       pid_log.p = float(self.pid.p)
-      pid_log.i = float(live_lat_accel_offset)
+      pid_log.i = float(self.pid.i)
       pid_log.d = float(self.pid.d)
-      pid_log.f = float(desired_lateral_accel - roll_compensation)
+      pid_log.f = float(self.pid.f)
       pid_log.output = float(-output_torque)  # TODO: log lat accel?
       pid_log.actualLateralAccel = float(actual_lateral_accel)
       pid_log.desiredLateralAccel = float(desired_lateral_accel)

@@ -162,10 +162,9 @@ class VehicleParamsLearner:
     liveParameters = msg.liveParameters
     liveParameters.posenetValid = True
     liveParameters.sensorValid = sensors_valid
-    liveParameters.liveLatAccelOffset = float(x[States.LAT_ACCEL_OFFSET].item())
     liveParameters.steerRatio = float(x[States.STEER_RATIO].item())
     liveParameters.stiffnessFactor = float(x[States.STIFFNESS].item())
-    liveParameters.roll = float(self.roll)
+    liveParameters.roll = float(self.roll + x[States.LAT_ACCEL_OFFSET].item())
     liveParameters.angleOffsetAverageDeg = float(self.avg_angle_offset)
     liveParameters.angleOffsetDeg = float(self.angle_offset)
     liveParameters.steerRatioValid = self.min_sr <= liveParameters.steerRatio <= self.max_sr

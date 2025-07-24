@@ -2258,8 +2258,6 @@ struct LiveParametersData {
   steerRatioValid @19 :Bool = true;
   stiffnessFactorValid @20 :Bool = true;
 
-  liveLatAccelOffset @21 :Float32;
-
   yawRateDEPRECATED @7 :Float32;
   filterStateDEPRECATED @15 :LiveLocationKalman.Measurement;
 

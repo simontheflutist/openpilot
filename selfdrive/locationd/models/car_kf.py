@@ -39,7 +39,7 @@ class States:
   YAW_RATE = _slice(1)  # [rad/s]
   STEER_ANGLE = _slice(1)  # [rad]
   ROAD_ROLL = _slice(1)  # [rad]
-  LAT_ACCEL_OFFSET = _slice(1)  # [m/s^2]
+  LAT_ACCEL_OFFSET = _slice(1)  # in units of "gs"
 
 
 class CarKalman(KalmanFilter):
@@ -69,7 +69,8 @@ class CarKalman(KalmanFilter):
     math.radians(0.1)**2,
     math.radians(0.1)**2,
     math.radians(1)**2,
-    0.9  # LAT_ACCEL_OFFSET process noise. start this low and then tune it up towards 0.1 m/s^2?
+    # suggested by gemini
+    0.03**2
   ])
   P_initial = Q.copy()
 
@@ -135,17 +136,16 @@ class CarKalman(KalmanFilter):
     C[0, 0] = ACCELERATION_DUE_TO_GRAVITY
     C[1, 0] = 0
 
-    D = sp.Matrix(np.zeros((2, 1)))
-    D[0, 0] = state[States.LAT_ACCEL_OFFSET, :][0, 0]
-    D[1, 0] = 0
-
     x = sp.Matrix([v, r])  # lateral velocity, yaw rate
-    x_dot = A * x + B * (sa - angle_offset - angle_offset_fast) - C * theta - D
+    x_dot = A * x + B * (sa - angle_offset - angle_offset_fast) - C * (theta + state[States.LAT_ACCEL_OFFSET, :][0, 0])
 
     dt = sp.Symbol('dt')
     state_dot = sp.Matrix(np.zeros((dim_state, 1)))
     state_dot[States.VELOCITY.start + 1, 0] = x_dot[0]
     state_dot[States.YAW_RATE.start, 0] = x_dot[1]
+
+    # LAT_ACCEL_OFFSET follows an OU process
+    state_dot[States.LAT_ACCEL_OFFSET, 0] = -0.33 * state[States.LAT_ACCEL_OFFSET, 0]
 
     # Basic descretization, 1st order integrator
     # Can be pretty bad if dt is big
