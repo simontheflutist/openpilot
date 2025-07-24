@@ -143,8 +143,15 @@ class VehicleParamsLearner:
                                 self.avg_angle_offset - MAX_ANGLE_OFFSET_DELTA, self.avg_angle_offset + MAX_ANGLE_OFFSET_DELTA)
     self.angle_offset = np.clip(np.degrees(x[States.ANGLE_OFFSET].item() + x[States.ANGLE_OFFSET_FAST].item()),
                         self.angle_offset - MAX_ANGLE_OFFSET_DELTA, self.angle_offset + MAX_ANGLE_OFFSET_DELTA)
-    self.roll = np.clip(float(x[States.ROAD_ROLL].item()), self.roll - ROLL_MAX_DELTA, self.roll + ROLL_MAX_DELTA)
-    roll_std = float(P[States.ROAD_ROLL].item())
+    self.roll = np.clip(
+      float(x[States.ROAD_ROLL].item()),
+      self.roll - ROLL_MAX_DELTA, self.roll + ROLL_MAX_DELTA
+    ) + np.clip(float(x[States.LAT_ACCEL_OFFSET].item()), -0.1, 0.1) # 0.1 g is plenty
+    roll_std = np.sqrt(
+      self.kf.P[States.ROAD_ROLL, States.ROAD_ROLL]
+      #  + self.kf.P[States.LAT_ACCEL_OFFSET, States.LAT_ACCEL_OFFSET]
+      # + 2 * self.kf.P[States.ROAD_ROLL, States.LAT_ACCEL_OFFSET]
+    )
     if self.active and self.observed_speed > LOW_ACTIVE_SPEED:
       # Account for the opposite signs of the yaw rates
       # At low speeds, bumping into a curb can cause the yaw rate to be very high
@@ -164,7 +171,7 @@ class VehicleParamsLearner:
     liveParameters.sensorValid = sensors_valid
     liveParameters.steerRatio = float(x[States.STEER_RATIO].item())
     liveParameters.stiffnessFactor = float(x[States.STIFFNESS].item())
-    liveParameters.roll = float(self.roll + x[States.LAT_ACCEL_OFFSET].item())
+    liveParameters.roll = float(self.roll)
     liveParameters.angleOffsetAverageDeg = float(self.avg_angle_offset)
     liveParameters.angleOffsetDeg = float(self.angle_offset)
     liveParameters.steerRatioValid = self.min_sr <= liveParameters.steerRatio <= self.max_sr
