@@ -61,7 +61,7 @@ class CarKalman(KalmanFilter):
     (.05 / 100)**2,
     .01**2,
     math.radians(0.02)**2,
-    math.radians(0.25)**2,
+    math.radians(0.5)**2,
 
     .1**2, .01**2,
     math.radians(0.1)**2,
@@ -140,6 +140,10 @@ class CarKalman(KalmanFilter):
     state_dot = sp.Matrix(np.zeros((dim_state, 1)))
     state_dot[States.VELOCITY.start + 1, 0] = x_dot[0]
     state_dot[States.YAW_RATE.start, 0] = x_dot[1]
+
+    # angle offset fast follows an OU process.
+    # steady state std = (process std) / sqrt(2 * rate) where rate here is 0.1
+    state_dot[States.ANGLE_OFFSET_FAST, 0] = -0.1 * state[States.ANGLE_OFFSET_FAST, 0]
 
     # Basic descretization, 1st order integrator
     # Can be pretty bad if dt is big
