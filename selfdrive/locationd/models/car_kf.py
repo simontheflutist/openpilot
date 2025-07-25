@@ -70,13 +70,13 @@ class CarKalman(KalmanFilter):
     math.radians(0.1)**2,
     math.radians(1)**2,
     # suggested by gemini
-    0.01**2
+    0.02**2
   ])
   P_initial = Q.copy()
 
   obs_noise: dict[int, Any] = {
     ObservationKind.STEER_ANGLE: np.atleast_2d(math.radians(0.05)**2),
-    ObservationKind.ANGLE_OFFSET_FAST: np.atleast_2d(math.radians(10.0)**2),
+    ObservationKind.ANGLE_OFFSET_FAST: np.atleast_2d(math.radians(5.0)**2),
     ObservationKind.ROAD_ROLL: np.atleast_2d(math.radians(1.0)**2),
     ObservationKind.STEER_RATIO: np.atleast_2d(5.0**2),
     ObservationKind.STIFFNESS: np.atleast_2d(0.5**2),
