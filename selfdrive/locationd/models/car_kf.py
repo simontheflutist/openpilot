@@ -39,6 +39,7 @@ class States:
   YAW_RATE = _slice(1)  # [rad/s]
   STEER_ANGLE = _slice(1)  # [rad]
   ROAD_ROLL = _slice(1)  # [rad]
+  LAT_ACCEL_OFFSET = _slice(1)  # in units of "gs"
 
 
 class CarKalman(KalmanFilter):
@@ -53,7 +54,8 @@ class CarKalman(KalmanFilter):
     10.0, 0.0,
     0.0,
     0.0,
-    0.0
+    0.0,
+    0.0  # LAT_ACCEL_OFFSET
   ])
 
   # process noise
@@ -61,12 +63,14 @@ class CarKalman(KalmanFilter):
     (.05 / 100)**2,
     .01**2,
     math.radians(0.02)**2,
-    math.radians(0.25)**2,
+    math.radians(0.5)**2,
 
     .1**2, .01**2,
     math.radians(0.1)**2,
     math.radians(0.1)**2,
     math.radians(1)**2,
+    # suggested by gemini
+    0.01**2
   ])
   P_initial = Q.copy()
 
@@ -95,7 +99,7 @@ class CarKalman(KalmanFilter):
 
     # Linearized single-track lateral dynamics, equations 7.211-7.213
     # Massimo Guiggiani, The Science of Vehicle Dynamics: Handling, Braking, and Ride of Road and Race Cars
-    # Springer Cham, 2023. doi: https://doi.org/10.1007/978-3-031-06461-6
+    # Springer Cham, 2023. doi: https://doi.org/10.1007/978-3-031-06461-
 
     # globals
     global_vars = [sp.Symbol(name) for name in CarKalman.global_vars]
@@ -134,12 +138,18 @@ class CarKalman(KalmanFilter):
     C[1, 0] = 0
 
     x = sp.Matrix([v, r])  # lateral velocity, yaw rate
-    x_dot = A * x + B * (sa - angle_offset - angle_offset_fast) - C * theta
+    x_dot = A * x + B * (sa - angle_offset - angle_offset_fast) - C * (theta + state[States.LAT_ACCEL_OFFSET, :][0, 0])
 
     dt = sp.Symbol('dt')
     state_dot = sp.Matrix(np.zeros((dim_state, 1)))
     state_dot[States.VELOCITY.start + 1, 0] = x_dot[0]
     state_dot[States.YAW_RATE.start, 0] = x_dot[1]
+
+    # angle offset fast follows an OU process.
+    # steady state std = (process std) / sqrt(2 * rate) where rate here is 0.1
+    state_dot[States.ANGLE_OFFSET_FAST, 0] = -0.1 * state[States.ANGLE_OFFSET_FAST, 0]
+    # LAT_ACCEL_OFFSET follows an OU process
+    state_dot[States.LAT_ACCEL_OFFSET, 0] = -0.1 * state[States.LAT_ACCEL_OFFSET, 0]
 
     # Basic descretization, 1st order integrator
     # Can be pretty bad if dt is big
