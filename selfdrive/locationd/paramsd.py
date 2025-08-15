@@ -101,7 +101,6 @@ class VehicleParamsLearner:
                                       ObservationKind.ROAD_ROLL,
                                       np.array([[self.observed_roll]]),
                                       np.array([np.atleast_2d(roll_std**2)]))
-        self.kf.predict_and_observe(t, ObservationKind.ANGLE_OFFSET_FAST, np.array([[0]]))
 
         # We observe the current stiffness and steer ratio (with a high observation noise) to bound
         # the respective estimate STD. Otherwise the STDs keep increasing, causing rapid changes in the
@@ -142,7 +141,10 @@ class VehicleParamsLearner:
                                 self.avg_angle_offset - MAX_ANGLE_OFFSET_DELTA, self.avg_angle_offset + MAX_ANGLE_OFFSET_DELTA)
     self.angle_offset = np.clip(np.degrees(x[States.ANGLE_OFFSET].item() + x[States.ANGLE_OFFSET_FAST].item()),
                         self.angle_offset - MAX_ANGLE_OFFSET_DELTA, self.angle_offset + MAX_ANGLE_OFFSET_DELTA)
-    self.roll = np.clip(float(x[States.ROAD_ROLL].item()), self.roll - ROLL_MAX_DELTA, self.roll + ROLL_MAX_DELTA)
+    self.roll = np.clip(
+      float(x[States.ROAD_ROLL].item()),
+      self.roll - ROLL_MAX_DELTA, self.roll + ROLL_MAX_DELTA
+    ) + np.clip(float(x[States.LAT_ACCEL_OFFSET].item()), -0.1, 0.1) # 0.1 g is plenty
     roll_std = float(P[States.ROAD_ROLL].item())
     if self.active and self.observed_speed > LOW_ACTIVE_SPEED:
       # Account for the opposite signs of the yaw rates
@@ -152,7 +154,7 @@ class VehicleParamsLearner:
       sensors_valid = True
     self.avg_offset_valid = check_valid_with_hysteresis(self.avg_offset_valid, self.avg_angle_offset, OFFSET_MAX, OFFSET_LOWERED_MAX)
     self.total_offset_valid = check_valid_with_hysteresis(self.total_offset_valid, self.angle_offset, OFFSET_MAX, OFFSET_LOWERED_MAX)
-    self.roll_valid = check_valid_with_hysteresis(self.roll_valid, self.roll, ROLL_MAX, ROLL_LOWERED_MAX)
+    self.roll_valid = check_valid_with_hysteresis(self.roll_valid, float(x[States.ROAD_ROLL].item()), ROLL_MAX, ROLL_LOWERED_MAX)
 
     msg = messaging.new_message('liveParameters')
 
