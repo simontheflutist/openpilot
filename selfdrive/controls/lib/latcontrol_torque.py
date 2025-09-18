@@ -5,7 +5,7 @@ from cereal import log
 from opendbc.car.lateral import FRICTION_THRESHOLD, get_friction
 from openpilot.common.constants import ACCELERATION_DUE_TO_GRAVITY
 from openpilot.selfdrive.controls.lib.latcontrol import LatControl
-from openpilot.common.pid import PIDController
+from openpilot.common.pid import MultiIntegralPIDController
 
 # At higher speeds (25+mph) we can assume:
 # Lateral acceleration achieved by a specific car correlates to
@@ -28,8 +28,13 @@ class LatControlTorque(LatControl):
     self.torque_params = CP.lateralTuning.torque.as_builder()
     self.torque_from_lateral_accel = CI.torque_from_lateral_accel()
     self.lateral_accel_from_torque = CI.lateral_accel_from_torque()
-    self.pid = PIDController(self.torque_params.kp, self.torque_params.ki,
-                             k_f=self.torque_params.kf)
+    # Use MultiIntegralPIDController with the existing ki as the first element
+    # Add more integral terms to the list as needed
+    self.pid = MultiIntegralPIDController(
+      k_p=self.torque_params.kp,
+      k_i=[self.torque_params.ki, self.torque_params.ki**2, self.torque_params.ki**3],
+      k_f=self.torque_params.kf
+    )
     self.update_limits()
     self.steering_angle_deadzone_deg = self.torque_params.steeringAngleDeadzoneDeg
 
