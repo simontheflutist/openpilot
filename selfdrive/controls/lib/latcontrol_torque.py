@@ -32,7 +32,7 @@ class LatControlTorque(LatControl):
     # Add more integral terms to the list as needed
     self.pid = MultiIntegralPIDController(
       k_p=self.torque_params.kp,
-      k_i=[self.torque_params.ki, self.torque_params.ki**2, self.torque_params.ki**3],
+      k_i=[0.7 * self.torque_params.ki, 0.5 * self.torque_params.ki**2, 0.5 * self.torque_params.ki**3],
       k_f=self.torque_params.kf
     )
     self.update_limits()
