@@ -28,7 +28,6 @@ KP_INTERP = [250, 120, 65, 30, 11.5, 5.5, 3.5, 2.0, KP]
 
 LP_FILTER_CUTOFF_HZ = 1.2
 JERK_LOOKAHEAD_SECONDS = 0.19
-JERK_GAIN = 0.3
 LAT_ACCEL_REQUEST_BUFFER_SECONDS = 1.0
 VERSION = 1  # bump this when changing controller
 
@@ -91,7 +90,7 @@ class LatControlTorque(LatControl):
       ff = gravity_adjusted_future_lateral_accel
       # latAccelOffset corrects roll compensation bias from device roll misalignment relative to car roll
       ff -= self.torque_params.latAccelOffset
-      ff += get_friction(error + JERK_GAIN * desired_lateral_jerk, lateral_accel_deadzone, FRICTION_THRESHOLD, self.torque_params)
+      ff += get_friction(error + lat_delay * (desired_lateral_jerk - measurement_rate), lateral_accel_deadzone, FRICTION_THRESHOLD, self.torque_params)
 
       freeze_integrator = steer_limited_by_safety or CS.steeringPressed or CS.vEgo < 5
       output_lataccel = self.pid.update(pid_log.error,                            #       setpoint - measurement
