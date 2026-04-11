@@ -100,7 +100,10 @@ class PoseKalman(KalmanFilter):
 
     dt = sp.Symbol('dt')
 
-    ned_from_device = euler_rotate(roll, pitch, yaw)
+    # Evaluate orientation at yaw=0: absolute yaw is unobservable (no sensor
+    # constrains it), so decouple it from roll/pitch dynamics and observations
+    # to prevent its unbounded uncertainty from contaminating observable states.
+    ned_from_device = euler_rotate(roll, pitch, sp.Integer(0))
     device_from_ned = ned_from_device.T
 
     state_dot = sp.Matrix(np.zeros((dim_state, 1)))
@@ -110,6 +113,7 @@ class PoseKalman(KalmanFilter):
     device_from_device_t1 = euler_rotate(dt*vroll, dt*vpitch, dt*vyaw)
     ned_from_device_t1 = ned_from_device * device_from_device_t1
     f_sym[States.NED_ORIENTATION, :] = rot_to_euler(ned_from_device_t1)
+    f_sym[2, 0] = yaw  # yaw_{t+1} = yaw_t (identity dynamics, inert state)
 
     centripetal_acceleration = angular_velocity.cross(velocity)
     gravity = sp.Matrix([0, 0, -EARTH_G])
