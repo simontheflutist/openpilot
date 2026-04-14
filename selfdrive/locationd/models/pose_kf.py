@@ -76,8 +76,7 @@ class PoseKalman(KalmanFilter):
     dt = sp.Symbol('dt')
 
     # Yaw is unobservable (no heading sensor) and excluded from the state;
-    # evaluate rotation at yaw=0 so its unbounded uncertainty cannot
-    # contaminate observable roll/pitch.
+    # evaluate rotation at device/calibrated frame yaw=0.
     ned_from_device = euler_rotate(roll, pitch, sp.Integer(0))
     device_from_ned = ned_from_device.T
 
@@ -88,8 +87,7 @@ class PoseKalman(KalmanFilter):
     device_from_device_t1 = euler_rotate(dt*vroll, dt*vpitch, dt*vyaw)
     ned_from_device_t1 = ned_from_device * device_from_device_t1
     # Extract only roll and pitch; yaw drops out of the third-row
-    # extraction (R_z only mixes rows 0-1), confirming the yaw=0
-    # substitution is exact for roll/pitch propagation.
+    # extraction (R_z only mixes rows 0-1).
     rpy_t1 = rot_to_euler(ned_from_device_t1)
     f_sym[States.NED_ORIENTATION, :] = rpy_t1[:2, :]
 
