@@ -18,26 +18,26 @@ EARTH_G = 9.81
 
 
 class States:
-  NED_ORIENTATION = slice(0, 3)  # roll, pitch, yaw in rad
-  DEVICE_VELOCITY = slice(3, 6)  # ned velocity in m/s
-  ANGULAR_VELOCITY = slice(6, 9)  # roll, pitch and yaw rates in rad/s
-  GYRO_BIAS = slice(9, 12)  # roll, pitch and yaw gyroscope biases in rad/s
-  ACCELERATION = slice(12, 15)  # acceleration in device frame in m/s**2
-  ACCEL_BIAS = slice(15, 18)  # Acceletometer bias in m/s**2
+  NED_ORIENTATION = slice(0, 2)  # roll, pitch in rad (yaw is unobservable and always zero)
+  DEVICE_VELOCITY = slice(2, 5)  # device velocity in m/s
+  ANGULAR_VELOCITY = slice(5, 8)  # roll, pitch and yaw rates in rad/s
+  GYRO_BIAS = slice(8, 11)  # roll, pitch and yaw gyroscope biases in rad/s
+  ACCELERATION = slice(11, 14)  # acceleration in device frame in m/s**2
+  ACCEL_BIAS = slice(14, 17)  # Acceletometer bias in m/s**2
 
 
 class PoseKalman(KalmanFilter):
   name = "pose"
 
   # state
-  initial_x = np.array([0.0, 0.0, 0.0,
+  initial_x = np.array([0.0, 0.0,
                         0.0, 0.0, 0.0,
                         0.0, 0.0, 0.0,
                         0.0, 0.0, 0.0,
                         0.0, 0.0, 0.0,
                         0.0, 0.0, 0.0])
   # state covariance
-  initial_P = np.diag([0.01**2, 0.01**2, 0.01**2,
+  initial_P = np.diag([0.01**2, 0.01**2,
                        10**2, 10**2, 10**2,
                        1**2, 1**2, 1**2,
                        1**2, 1**2, 1**2,
@@ -45,7 +45,7 @@ class PoseKalman(KalmanFilter):
                        0.01**2, 0.01**2, 0.01**2])
 
   # process noise
-  Q = np.diag([0.001**2, 0.001**2, 0.001**2,
+  Q = np.diag([0.001**2, 0.001**2,
                0.01**2, 0.01**2, 0.01**2,
                0.085**2, 0.085**2, 0.085**2,
                (0.005 / 100)**2, (0.005 / 100)**2, (0.005 / 100)**2,
@@ -65,7 +65,7 @@ class PoseKalman(KalmanFilter):
 
     state_sym = sp.MatrixSymbol('state', dim_state, 1)
     state = sp.Matrix(state_sym)
-    roll, pitch, yaw = state[States.NED_ORIENTATION, :]
+    roll, pitch = state[States.NED_ORIENTATION, :]
     velocity = state[States.DEVICE_VELOCITY, :]
     angular_velocity = state[States.ANGULAR_VELOCITY, :]
     vroll, vpitch, vyaw = angular_velocity
@@ -75,7 +75,10 @@ class PoseKalman(KalmanFilter):
 
     dt = sp.Symbol('dt')
 
-    ned_from_device = euler_rotate(roll, pitch, yaw)
+    # Yaw is unobservable (no heading sensor) and excluded from the state;
+    # evaluate rotation at yaw=0 so its unbounded uncertainty cannot
+    # contaminate observable roll/pitch.
+    ned_from_device = euler_rotate(roll, pitch, sp.Integer(0))
     device_from_ned = ned_from_device.T
 
     state_dot = sp.Matrix(np.zeros((dim_state, 1)))
@@ -84,7 +87,11 @@ class PoseKalman(KalmanFilter):
     f_sym = state + dt * state_dot
     device_from_device_t1 = euler_rotate(dt*vroll, dt*vpitch, dt*vyaw)
     ned_from_device_t1 = ned_from_device * device_from_device_t1
-    f_sym[States.NED_ORIENTATION, :] = rot_to_euler(ned_from_device_t1)
+    # Extract only roll and pitch; yaw drops out of the third-row
+    # extraction (R_z only mixes rows 0-1), confirming the yaw=0
+    # substitution is exact for roll/pitch propagation.
+    rpy_t1 = rot_to_euler(ned_from_device_t1)
+    f_sym[States.NED_ORIENTATION, :] = rpy_t1[:2, :]
 
     centripetal_acceleration = angular_velocity.cross(velocity)
     gravity = sp.Matrix([0, 0, -EARTH_G])

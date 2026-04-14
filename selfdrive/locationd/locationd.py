@@ -210,7 +210,10 @@ class LocationEstimator:
     state, cov = self.kf.x, self.kf.P
     std = np.sqrt(np.diag(cov))
 
-    orientation_ned, orientation_ned_std = state[States.NED_ORIENTATION], std[States.NED_ORIENTATION]
+    # NED_ORIENTATION is [roll, pitch] only (yaw is unobservable); pad with zero yaw for the 3-element message
+    rp, rp_std = state[States.NED_ORIENTATION], std[States.NED_ORIENTATION]
+    orientation_ned = np.array([rp[0], rp[1], 0.0])
+    orientation_ned_std = np.array([rp_std[0], rp_std[1], 0.0])
     velocity_device, velocity_device_std = state[States.DEVICE_VELOCITY], std[States.DEVICE_VELOCITY]
     angular_velocity_device, angular_velocity_device_std = state[States.ANGULAR_VELOCITY], std[States.ANGULAR_VELOCITY]
     acceleration_device, acceleration_device_std = state[States.ACCELERATION], std[States.ACCELERATION]
