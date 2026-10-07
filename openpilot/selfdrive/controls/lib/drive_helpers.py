@@ -1,3 +1,5 @@
+from collections import deque
+
 import numpy as np
 from openpilot.common.constants import ACCELERATION_DUE_TO_GRAVITY
 from openpilot.common.realtime import DT_CTRL, DT_MDL
@@ -8,6 +10,8 @@ CAR_ROTATION_RADIUS = 0.0
 # This is a turn radius smaller than most cars can achieve
 MAX_CURVATURE = 0.2
 MIN_STABLE_DELAY = 0.3
+HEADING_PREDICTOR_TAU = 1.0  # s, time constant for closing the predicted heading error
+IN_FLIGHT_BUFFER_SECONDS = 1.0
 
 # EU guidelines
 MAX_LATERAL_JERK = 5.0  # m/s^3
@@ -67,3 +71,35 @@ def get_curvature_from_plan(yaws, yaw_rates, t_idxs, vego, action_t):
     psi_target = np.interp(action_t, t_idxs, yaws)
   psi_rate = yaw_rates[0]
   return curv_from_psis(psi_target, psi_rate, vego, action_t)
+
+
+class InFlightHeadingPredictor:
+  """Predictor feedback on heading, assuming the steering responds to the curvature command as a unit-gain pure delay.
+
+  The command issued now starts acting lat_delay later. The heading the car will have by then, relative to the pose
+  the plan is expressed in, is set by the yaw rates already requested since that frame was captured. This predicts
+  that heading from the request history and steers the predicted error against the plan to zero with time constant tau.
+  """
+
+  def __init__(self, dt=DT_CTRL, tau=HEADING_PREDICTOR_TAU):
+    self.dt = dt
+    self.tau = tau
+    self.buffer_len = int(IN_FLIGHT_BUFFER_SECONDS / dt)
+    self.yaw_rate_requests = deque([0.] * self.buffer_len, maxlen=self.buffer_len)
+
+  def record(self, curvature, v_ego):
+    self.yaw_rate_requests.append(v_ego * curvature)
+
+  def predicted_heading(self, horizon):
+    n = int(np.clip(round(horizon / self.dt), 0, self.buffer_len))
+    if n == 0:
+      return 0.
+    return float(np.sum(np.array(self.yaw_rate_requests)[-n:])) * self.dt
+
+  def get_curvature(self, yaws, yaw_rates, t_idxs, v_ego, plan_age, lat_delay):
+    v_ego = max(v_ego, MIN_SPEED)
+    t_act = plan_age + lat_delay  # plan time at which the command issued now starts acting
+    psi_plan = np.interp(t_act, t_idxs, yaws)
+    psi_pred = self.predicted_heading(t_act)
+    curv_from_rate = np.interp(t_act, t_idxs, yaw_rates) / v_ego
+    return float(curv_from_rate + (psi_plan - psi_pred) / (v_ego * self.tau))
