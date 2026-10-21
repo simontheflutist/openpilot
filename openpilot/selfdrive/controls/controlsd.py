@@ -12,7 +12,7 @@ from openpilot.common.swaglog import cloudlog
 
 from opendbc.car.car_helpers import interfaces
 from opendbc.car.vehicle_model import VehicleModel
-from openpilot.selfdrive.controls.lib.drive_helpers import clip_curvature
+from openpilot.selfdrive.controls.lib.drive_helpers import clip_curvature, InFlightHeadingPredictor
 from openpilot.selfdrive.controls.lib.latcontrol import LatControl
 from openpilot.selfdrive.controls.lib.latcontrol_pid import LatControlPID
 from openpilot.selfdrive.controls.lib.latcontrol_angle import LatControlAngle, STEER_ANGLE_SATURATION_THRESHOLD
@@ -46,6 +46,7 @@ class Controls:
     self.steer_limited_by_safety = False
     self.curvature = 0.0
     self.desired_curvature = 0.0
+    self.heading_predictor = InFlightHeadingPredictor() if self.params.get_bool("LateralHeadingPredictor") else None
 
     self.pose_calibrator = PoseCalibrator()
     self.calibrated_pose: Pose | None = None
@@ -120,12 +121,18 @@ class Controls:
 
     # Steering PID loop and lateral MPC
     # Reset desired curvature to current to avoid violating the limits on engage
+    lat_delay = self.sm["lateralDelay"].lateralDelay + LAT_SMOOTH_SECONDS
     if self.sm.valid['lateralManeuverPlan']:
       new_desired_curvature = self.sm['lateralManeuverPlan'].desiredCurvature if CC.latActive else self.curvature
+    elif self.heading_predictor is not None and CC.latActive and self.sm.valid['modelV2'] and self.sm.valid['lateralDelay']:
+      plan_age = (self.sm.logMonoTime['selfdriveState'] - model_v2.timestampEof) * 1e-9
+      new_desired_curvature = self.heading_predictor.get_curvature(model_v2.orientation.z, model_v2.orientationRate.z, model_v2.orientation.t,
+                                                                   CS.vEgo, plan_age, lat_delay)
     else:
       new_desired_curvature = model_v2.action.desiredCurvature if CC.latActive else self.curvature
     self.desired_curvature, curvature_limited = clip_curvature(CS.vEgo, self.desired_curvature, new_desired_curvature, lp.roll)
-    lat_delay = self.sm["lateralDelay"].lateralDelay + LAT_SMOOTH_SECONDS
+    if self.heading_predictor is not None:
+      self.heading_predictor.record(self.desired_curvature, CS.vEgo)
 
     actuators.curvature = self.desired_curvature
     steer, lateral_output, lac_log = self.LaC.update(CC.latActive, CS, self.VM, lp,
